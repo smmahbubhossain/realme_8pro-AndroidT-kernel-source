@@ -1874,7 +1874,7 @@ int aw882xx_i2c_probe(struct i2c_client *i2c,
 	struct snd_soc_dai_driver *dai = NULL;
 	struct aw882xx *aw882xx = NULL;
 	struct device_node *np = i2c->dev.of_node;
-	struct aw882xx_chan_info *chan_info = NULL;
+	struct aw882xx_chan_info __maybe_unused *chan_info = NULL;
 	const char *aw882xx_rst = "aw882xx_rst";
 	const char *aw882xx_int = "aw882xx_int";
 	const char *aw882xx_irq_name = "aw882xx";
