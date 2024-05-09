@@ -1,0 +1,78 @@
+name: build and release
+
+on:
+  workflow_dispatch:
+    inputs:      
+      tag:
+        description: 'Release Tag'
+        required: true        
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install packages & setup
+        run: |
+          sudo apt update -y  
+          sudo apt install libncurses5-dev python2 libtinfo5 -y      
+          bash init_clang_13.sh
+          
+      - name: Set environment variable
+        run: |
+          echo "LPOS_KERNEL_VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+          
+      - name: Building TigerX
+        run: |
+          export PATH=$HOME/:$PWD/toolchain/bin:$PATH
+          bash build.sh -c
+
+      - name: Building TigerX + KernelSU
+        run: |
+          export PATH=$HOME/:$PWD/toolchain/bin:$PATH
+          bash build.sh -k          
+
+      - name: Upload kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: "TigerX-${{ env.TigerX_KERNEL_VERSION }}-[RM8Pro]"
+          path: |
+            out/TigerX*.zip
+            out/KSU*.zip
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          name: "TigerX Kernel ${{ env.TigerX_KERNEL_VERSION }}"
+          draft: false
+          prerelease: false
+          token: ${{ secrets.TOKEN }}          
+          artifacts: "out/TigerX*.zip,out/KSU*.zip"
+          body: "Commit SHA: ${{ github.sha }}"
+
+      - name: Upload to Telegram
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          document: "out/TigerX*.zip,out/KSU*.zip"
+          format: html
+          disable_web_page_preview: false
+          message: |
+            <b>New Kernel Build found..! 🎉</b>
+
+            <b>Device :</b> Realme 8 Pro   
+            <b>Kernel Version :</b> ${{ env.TigerX_KERNEL_VERSION }}                    
+            <b>Repository:</b> <a href="https://github.com/${{ github.repository }}">${{ github.repository }}</a>
+            
+            <b>Commit SHA:</b> <a href="https://github.com/${{ github.repository }}/commit/${{github.sha}}">Click here</a>
+            
+            <b>Installation :</b> <a href="https://telegra.ph/TigerX-Kernel-Installation-Guide-02-09">Click here</a>
