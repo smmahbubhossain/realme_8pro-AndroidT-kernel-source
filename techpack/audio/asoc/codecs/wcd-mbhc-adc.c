@@ -30,11 +30,32 @@
 #include "wcd-mbhc-adc.h"
 #include "wcd-mbhc-v2.h"
 #include "pdata.h"
-
+#ifdef OPLUS_FEATURE_FSA4480
+#include <asoc/wcd934x_registers.h>
+#endif
+#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+#include <linux/soc/qcom/max20328.h>
+#endif /* OPLUS_ARCH_EXTENDS */
+#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#endif
+#ifdef OPLUS_FEATURE_FSA4480
+#define WCD_MBHC_ADC_HS_THRESHOLD_MV    2550
+#else
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    1700
+#endif
 #define WCD_MBHC_ADC_HPH_THRESHOLD_MV   75
+#ifdef OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL
+/* liuhaituo@MM.Audio add */
+#define WCD_MBHC_ADC_MICBIAS_MV         2700
+#else
 #define WCD_MBHC_ADC_MICBIAS_MV         1800
+#endif
 #define WCD_MBHC_FAKE_INS_RETRY         4
+#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+/* 114 = 6 * step = 6 * (125 * micbias) / (WCD_MBHC_ADC_MICBIAS_MV * 10) */
+#define WCD_MBHC_ADC_DIFF_MIN_MV        114
+#endif /* OPLUS_ARCH_EXTENDS */
 
 static int wcd_mbhc_get_micbias(struct wcd_mbhc *mbhc)
 {
@@ -68,6 +89,10 @@ static int wcd_measure_adc_continuous(struct wcd_mbhc *mbhc)
 	int output_mv = 0;
 	int retry = 3;
 	u8 adc_en = 0;
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	pr_debug("%s: enter\n", __func__);
 
@@ -186,6 +211,14 @@ static bool wcd_mbhc_adc_detect_anc_plug_type(struct wcd_mbhc *mbhc)
 	u8 vref = 0;
 	int vref_mv[] = {1650, 1500, 1600, 1700};
 
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: enter\n", __func__);
+	#endif /* OPLUS_ARCH_EXTENDS */
 	if (mbhc->mbhc_cfg->anc_micbias < MIC_BIAS_1 ||
 	    mbhc->mbhc_cfg->anc_micbias > MIC_BIAS_4)
 		return false;
@@ -270,7 +303,8 @@ done:
 
 	return anc_mic_found;
 }
-
+#ifdef REALME_19696_SPECIFIC_AUDIO_KERNEL
+#else
 /* To determine if cross connection occurred */
 static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 {
@@ -281,6 +315,11 @@ static int wcd_check_cross_conn(struct wcd_mbhc *mbhc)
 	u8 adc_mode = 0;
 	u8 elect_ctl = 0;
 	u8 adc_en = 0;
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	pr_debug("%s: enter\n", __func__);
 	/* Check for button press and plug detection */
@@ -350,6 +389,8 @@ done:
 
 	return (plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP) ? true : false;
 }
+#endif /* REALME_19696_SPECIFIC_AUDIO_KERNEL */
+
 
 static int wcd_mbhc_adc_get_hs_thres(struct wcd_mbhc *mbhc)
 {
@@ -393,6 +434,11 @@ static bool wcd_mbhc_adc_check_for_spl_headset(struct wcd_mbhc *mbhc,
 	bool spl_hs = false;
 	int output_mv = 0;
 	int adc_threshold = 0, adc_hph_threshold = 0;
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	pr_debug("%s: enter\n", __func__);
 	if (!mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic)
@@ -443,6 +489,11 @@ static bool wcd_is_special_headset(struct wcd_mbhc *mbhc)
 	int output_mv = 0;
 	int adc_threshold = 0;
 
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	/*
 	 * Increase micbias to 2.7V to detect headsets with
 	 * threshold on microphone
@@ -473,7 +524,11 @@ static bool wcd_is_special_headset(struct wcd_mbhc *mbhc)
 		/* Wait for 50ms for FSM to update result */
 		msleep(50);
 		output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
+		#ifndef OPLUS_ARCH_EXTENDS
 		if (output_mv <= adc_threshold) {
+		#else /* OPLUS_ARCH_EXTENDS */
+		if ((output_mv >= 0) && (output_mv <= adc_threshold)) {
+		#endif /* OPLUS_ARCH_EXTENDS */
 			pr_debug("%s: Special headset detected in %d msecs\n",
 					__func__, delay);
 			is_spl_hs = true;
@@ -527,6 +582,11 @@ static void wcd_mbhc_adc_update_fsm_source(struct wcd_mbhc *mbhc,
 static void wcd_schedule_hs_detect_plug(struct wcd_mbhc *mbhc,
 					    struct work_struct *work)
 {
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	pr_debug("%s: scheduling correct_swch_plug\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 	mbhc->hs_detect_work_stop = false;
@@ -538,6 +598,11 @@ static void wcd_schedule_hs_detect_plug(struct wcd_mbhc *mbhc,
 static void wcd_cancel_hs_detect_plug(struct wcd_mbhc *mbhc,
 					 struct work_struct *work)
 {
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	pr_debug("%s: Canceling correct_plug_swch\n", __func__);
 	mbhc->hs_detect_work_stop = true;
 	WCD_MBHC_RSC_UNLOCK(mbhc);
@@ -553,8 +618,20 @@ static void wcd_cancel_hs_detect_plug(struct wcd_mbhc *mbhc,
 static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 {
 	struct snd_soc_codec *codec = mbhc->codec;
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	pr_debug("%s: enter\n", __func__);
+	#ifdef OPLUS_ARCH_EXTENDS
+	msleep(400);
+	#endif /* OPLUS_ARCH_EXTENDS */	
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
 	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
@@ -565,6 +642,12 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 	if (mbhc->mbhc_cb->mbhc_micbias_control) {
 		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
 						    MICB_ENABLE);
+		#ifdef OPLUS_ARCH_EXTENDS
+		if(mbhc->headset_bias_alwayon) {
+			mbhc->micbias_enable = true;
+			pr_info("%s: Mic Bias is set for  alwayon\n", __func__);
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
 	} else {
 		pr_err("%s: Mic Bias is not enabled\n", __func__);
 		return;
@@ -576,11 +659,62 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 	pr_debug("%s: leave\n", __func__);
 }
 
+#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+static void wcd_mbhc_detect_plug_type_new(struct work_struct *work)
+{
+	struct delayed_work *dwork;
+	struct wcd_mbhc *mbhc;
+    struct snd_soc_codec *codec;
+
+	dwork = to_delayed_work(work);
+	mbhc = container_of(dwork, struct wcd_mbhc, hp_detect_work);
+	codec = mbhc->codec;
+
+	pr_err("%s: enter\n", __func__);
+
+	WCD_MBHC_RSC_LOCK(mbhc);
+	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
+
+	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
+		mbhc->mbhc_cb->hph_pull_down_ctrl(codec, false);
+
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
+
+	if (mbhc->mbhc_cb->mbhc_micbias_control) {
+		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
+						    MICB_ENABLE);
+		#ifdef OPLUS_ARCH_EXTENDS
+		if(mbhc->headset_bias_alwayon) {
+			mbhc->micbias_enable = true;
+			pr_info("%s: Mic Bias is set for  alwayon\n", __func__);
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
+	} else {
+		pr_err("%s: Mic Bias is not enabled\n", __func__);
+		return;
+	}
+
+	pr_err("%s: scheduling correct_plug_swch.\n", __func__);
+	/* Re-initialize button press completion object */
+	reinit_completion(&mbhc->btn_press_compl);
+	wcd_schedule_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
+	WCD_MBHC_RSC_UNLOCK(mbhc);
+	pr_err("%s: leave\n", __func__);
+}
+#endif /* OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL */
+
 static void wcd_micbias_disable(struct wcd_mbhc *mbhc)
 {
 	if (mbhc->micbias_enable) {
+		#if !defined(OPLUS_ARCH_EXTENDS) || defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
 		mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(
 			mbhc->codec, MIC_BIAS_2, false);
+		#else /* OPLUS_ARCH_EXTENDS */
+		if (mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic) {
+			mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(
+				mbhc->codec, MIC_BIAS_2, false);
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
 		if (mbhc->mbhc_cb->set_micbias_value)
 			mbhc->mbhc_cb->set_micbias_value(
 					mbhc->codec);
@@ -593,6 +727,18 @@ static int wcd_mbhc_get_plug_from_adc(struct wcd_mbhc *mbhc, int adc_result)
 {
 	enum wcd_mbhc_plug_type plug_type = MBHC_PLUG_TYPE_INVALID;
 	u32 hph_thr = 0, hs_thr = 0;
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: adc_result %d mv\n", __func__, adc_result);
+	if (adc_result < 0) {
+		return plug_type;
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	hs_thr = wcd_mbhc_adc_get_hs_thres(mbhc);
 	hph_thr = wcd_mbhc_adc_get_hph_thres(mbhc);
@@ -608,6 +754,16 @@ static int wcd_mbhc_get_plug_from_adc(struct wcd_mbhc *mbhc, int adc_result)
 	return plug_type;
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+#define OPLUS_AUDIO_EVENTID_HEADSET_DET   (10009)
+#define OPLUS_FB_HEADSET_DET_RATELIMIT    (60*1000)
+int upload_mm_fb_kevent_to_atlas_limit(unsigned int event_id, unsigned char *payload, int limit_ms);
+static int (*upload_mm_fb_func)(unsigned int event_id, unsigned char *payload, int limit_ms);
+#endif
+#ifdef REALME_19696_SPECIFIC_AUDIO_KERNEL
+#ifdef OPLUS_ARCH_EXTENDS
+#define TRY_SWITCH_THRESHOLD_MV    700
+#endif /* OPLUS_ARCH_EXTENDS */
 static void wcd_correct_swch_plug(struct work_struct *work)
 {
 	struct wcd_mbhc *mbhc;
@@ -615,15 +771,39 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	enum wcd_mbhc_plug_type plug_type = MBHC_PLUG_TYPE_INVALID;
 	unsigned long timeout;
 	bool wrk_complete = false;
-	int pt_gnd_mic_swap_cnt = 0;
-	int no_gnd_mic_swap_cnt = 0;
 	bool is_pa_on = false, spl_hs = false, spl_hs_reported = false;
-	int ret = 0;
 	int spl_hs_count = 0;
 	int output_mv = 0;
+	#ifndef OPLUS_ARCH_EXTENDS
 	int cross_conn;
 	int try = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	enum wcd_mbhc_plug_type plug_type_first = MBHC_PLUG_TYPE_INVALID;
+	int output_mv_first = 0;
+	#endif
+	#ifdef OPLUS_ARCH_EXTENDS
+	#undef pr_debug
+	#define pr_debug pr_info
+	#endif /* OPLUS_ARCH_EXTENDS */
+
 	int hs_threshold, micbias_mv;
+	#ifdef OPLUS_ARCH_EXTENDS
+	int headset_count = 0;
+	int headphone_count = 0;
+	int high_hph_count = 0;
+	int hph_threshold;
+	#endif /* OPLUS_ARCH_EXTENDS */
+	#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+	int retry = 0;
+	char buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+	#endif
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	pr_debug("%s: enter\n", __func__);
 
@@ -632,32 +812,96 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 
 	micbias_mv = wcd_mbhc_get_micbias(mbhc);
 	hs_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: hs_threshold %d mv\n", __func__, hs_threshold);
+	hph_threshold = wcd_mbhc_adc_get_hph_thres(mbhc);
+	pr_info("%s: hph_threshold %d mv\n", __func__, hph_threshold);
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	WCD_MBHC_RSC_LOCK(mbhc);
 	/* Mask ADC COMPLETE interrupt */
 	wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_INS, false);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
 
-	/* Check for cross connection */
-	do {
-		cross_conn = wcd_check_cross_conn(mbhc);
-		try++;
-	} while (try < mbhc->swap_thr);
+       if(mbhc->mbhc_cfg->enable_usbc_analog) {
+           output_mv = wcd_measure_adc_continuous(mbhc);
+	   plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+       }
 
-	if (cross_conn > 0) {
-		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-		pr_debug("%s: cross connection found, Plug type %d\n",
-			 __func__, plug_type);
+       if (((plug_type != MBHC_PLUG_TYPE_HEADSET) ||
+			(output_mv < TRY_SWITCH_THRESHOLD_MV)) &&
+	    (mbhc->mbhc_cfg->enable_usbc_analog) &&
+	    (!wcd_swch_level_remove(mbhc))) {
+	    if (mbhc->mbhc_cfg->swap_gnd_mic &&
+			mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_debug("%s: check headphone,flip switch\n", __func__);
+			msleep(10);
+			output_mv_first = wcd_measure_adc_continuous(mbhc);
+			plug_type_first = wcd_mbhc_get_plug_from_adc(mbhc, output_mv_first);
+			pr_err("%s: second check output_mv = %d, plug_type = %d\n",
+				__func__, output_mv_first, plug_type_first);
+			//not headset, switch back to last connection state, else stay new connection state
+			if (plug_type_first != MBHC_PLUG_TYPE_HEADSET) {
+				mbhc->mbhc_cfg->swap_gnd_mic(codec, true);
+				msleep(5);
+			} else {
+				output_mv = output_mv_first;
+				plug_type = plug_type_first;
+			}
+		}
+	} else if(!mbhc->mbhc_cfg->enable_usbc_analog) {
+	output_mv_first = wcd_measure_adc_continuous(mbhc);
+	plug_type_first = wcd_mbhc_get_plug_from_adc(mbhc, output_mv_first);
+	pr_err("%s: first check output_mv = %d, plug_type = %d\n",
+		 __func__, output_mv_first, plug_type_first);
+	if(!mbhc->mbhc_cfg->enable_usbc_analog) {
+		output_mv = output_mv_first;
+		plug_type = plug_type_first;
+		goto plug_type_report;
+	}
+
+	if (mbhc->mbhc_cfg->swap_gnd_mic &&
+			mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+		pr_debug("%s: check headphone,flip switch\n", __func__);
+		msleep(10);
+		output_mv = wcd_measure_adc_continuous(mbhc);
+		plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+		pr_err("%s: second check output_mv = %d, plug_type = %d\n",
+			__func__, output_mv, plug_type);
+	}
+
+	if ((abs(output_mv_first - output_mv) < WCD_MBHC_ADC_DIFF_MIN_MV)
+	        && (plug_type_first == MBHC_PLUG_TYPE_HEADSET)
+	        && (plug_type == MBHC_PLUG_TYPE_HEADSET)) {
+		pr_debug("%s: maybe special headset, check again\n", __func__);
+		goto correct_plug_type;
+	} else if((output_mv_first > output_mv) && (plug_type_first == MBHC_PLUG_TYPE_HEADSET)){
+	    if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_debug("%s: swap gnd and mic\n", __func__);
+		}
+		plug_type = plug_type_first;
+	} else if ((MBHC_PLUG_TYPE_HIGH_HPH == plug_type_first)
+	        && (MBHC_PLUG_TYPE_HEADPHONE == plug_type)) {
+		if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_debug("%s: swap gnd and mic\n", __func__);
+		}
+		plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
+		pr_debug("%s: maybe tieline, check again\n", __func__);
 		goto correct_plug_type;
 	}
-	/* Find plug type */
-	output_mv = wcd_measure_adc_continuous(mbhc);
-	plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+        }
+
 
 	/*
 	 * Report plug type if it is either headset or headphone
 	 * else start the 3 sec loop
 	 */
+	#ifdef OPLUS_ARCH_EXTENDS
+	plug_type_report:
+	#endif /* OPLUS_ARCH_EXTENDS */
+
 	if ((plug_type == MBHC_PLUG_TYPE_HEADSET ||
 	     plug_type == MBHC_PLUG_TYPE_HEADPHONE) &&
 	    (!wcd_swch_level_remove(mbhc))) {
@@ -675,6 +919,12 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 1);
+		#ifdef OPLUS_ARCH_EXTENDS
+		if(mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET) {
+			pr_err("%s: headset report\n", __func__);
+			goto enable_supply;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
 correct_plug_type:
@@ -710,6 +960,12 @@ correct_plug_type:
 		 * btn press/release for HEADSET type during correct work.
 		 */
 		output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
+		#ifdef OPLUS_ARCH_EXTENDS
+		if (output_mv < 0) {
+			pr_info("%s: MUX_CTL_IN2P adc measurement failed!\n", __func__);
+			continue;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
 
 		/*
 		 * instead of hogging system by contineous polling, wait for
@@ -721,6 +977,9 @@ correct_plug_type:
 		    (spl_hs_count < WCD_MBHC_SPL_HS_CNT)) {
 			spl_hs = wcd_mbhc_adc_check_for_spl_headset(mbhc,
 								&spl_hs_count);
+			#ifdef OPLUS_ARCH_EXTENDS
+			pr_info("%s: spl_hs_count %d, spl_hs %d\n", __func__, spl_hs_count, spl_hs);
+			#endif /* OPLUS_ARCH_EXTENDS */
 			output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
 
 			if (spl_hs_count == WCD_MBHC_SPL_HS_CNT) {
@@ -731,73 +990,54 @@ correct_plug_type:
 			}
 		}
 
+		#ifdef OPLUS_ARCH_EXTENDS
+		if (output_mv < 0) {
+			pr_info("%s: invalid output_mv %d!\n", __func__, output_mv);
+			continue;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
+
 		if (mbhc->mbhc_cb->hph_pa_on_status)
 			is_pa_on = mbhc->mbhc_cb->hph_pa_on_status(mbhc->codec);
 
-		if ((output_mv <= hs_threshold) &&
-		    (!is_pa_on)) {
-			/* Check for cross connection*/
-			ret = wcd_check_cross_conn(mbhc);
-			if (ret < 0)
-				continue;
-			else if (ret > 0) {
-				pt_gnd_mic_swap_cnt++;
-				no_gnd_mic_swap_cnt = 0;
-				if (pt_gnd_mic_swap_cnt <
-						mbhc->swap_thr) {
-					continue;
-				} else if (pt_gnd_mic_swap_cnt >
-					   mbhc->swap_thr) {
-					/*
-					 * This is due to GND/MIC switch didn't
-					 * work,  Report unsupported plug.
-					 */
-					pr_debug("%s: switch did not work\n",
-						 __func__);
-					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-					goto report;
-				} else {
-					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
-				}
-			} else {
-				no_gnd_mic_swap_cnt++;
-				pt_gnd_mic_swap_cnt = 0;
-				plug_type = wcd_mbhc_get_plug_from_adc(
-						mbhc, output_mv);
-				if ((no_gnd_mic_swap_cnt <
-				    mbhc->swap_thr) &&
-				    (spl_hs_count != WCD_MBHC_SPL_HS_CNT)) {
-					continue;
-				} else {
-					no_gnd_mic_swap_cnt = 0;
-				}
-			}
-			if ((pt_gnd_mic_swap_cnt == mbhc->swap_thr) &&
-				(plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP)) {
-				/*
-				 * if switch is toggled, check again,
-				 * otherwise report unsupported plug
-				 */
-				if (mbhc->mbhc_cfg->swap_gnd_mic &&
-					mbhc->mbhc_cfg->swap_gnd_mic(codec,
-					true)) {
-					pr_debug("%s: US_EU gpio present,flip switch\n"
-						, __func__);
-					continue;
-				}
-			}
-		}
+		#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+		retry++;
+		#endif /* OPLUS_FEATURE_MM_FEEDBACK */
 
 		if (output_mv > hs_threshold) {
 			pr_debug("%s: cable is extension cable\n", __func__);
 			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 			wrk_complete = true;
+			#ifdef OPLUS_ARCH_EXTENDS
+			high_hph_count++;
+			if ((high_hph_count == 5) && !headset_count && !headphone_count) {
+				pr_info("%s: HIGH_HPH type, break loop detect\n", __func__);
+				break;
+			}
+
+			continue;
+			#endif /* OPLUS_ARCH_EXTENDS */
 		} else {
 			pr_debug("%s: cable might be headset: %d\n", __func__,
 				 plug_type);
 			if (plug_type != MBHC_PLUG_TYPE_GND_MIC_SWAP) {
 				plug_type = wcd_mbhc_get_plug_from_adc(
 						mbhc, output_mv);
+
+				#ifdef OPLUS_ARCH_EXTENDS
+				if (plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+					headphone_count++;
+				}
+
+				if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
+					headset_count++;
+				}
+
+				pr_info("%s: spl_hs_reported %d\n", __func__, spl_hs_reported);
+				pr_info("%s: headphone_count %d\n", __func__, headphone_count);
+				pr_info("%s: headset_count %d\n", __func__, headset_count);
+				#endif /* OPLUS_ARCH_EXTENDS */
+
 				if (!spl_hs_reported &&
 				    spl_hs_count == WCD_MBHC_SPL_HS_CNT) {
 					spl_hs_reported = true;
@@ -813,6 +1053,9 @@ correct_plug_type:
 				 * and if there is not button press without
 				 * release
 				 */
+				#ifdef OPLUS_ARCH_EXTENDS
+				pr_info("%s: loop current_plug %d\n", __func__, mbhc->current_plug);
+				#endif /* OPLUS_ARCH_EXTENDS */
 				if ((mbhc->current_plug !=
 				      MBHC_PLUG_TYPE_HEADSET) &&
 				     (mbhc->current_plug !=
@@ -823,8 +1066,33 @@ correct_plug_type:
 						((spl_hs_count ==
 							WCD_MBHC_SPL_HS_CNT) ?
 							"special ":""));
+					#ifdef OPLUS_ARCH_EXTENDS
+					if (MBHC_PLUG_TYPE_HEADPHONE == plug_type){
+						headphone_count++;
+						if (headphone_count < 5) {
+						    continue;
+						}
+						pr_err("%s: headphone_count = %d\n",
+						    __func__, headphone_count);
+					}
+					#endif
 					goto report;
 				}
+
+				#ifdef OPLUS_ARCH_EXTENDS
+				if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+					&& (!wcd_swch_level_remove(mbhc))) {
+					if (headphone_count == 6) {
+						pr_info("%s: go to report 3pole\n", __func__);
+						goto report;
+					}
+
+					if ((plug_type == MBHC_PLUG_TYPE_HEADSET) && (headset_count == 6)) {
+						pr_info("%s: it is headset, break loop detect!\n", __func__);
+						break;
+					}
+				}
+				#endif /* OPLUS_ARCH_EXTENDS */
 			}
 			wrk_complete = false;
 		}
@@ -864,7 +1132,8 @@ report:
 		pr_debug("%s: Switch level is low\n", __func__);
 		goto exit;
 	}
-
+	#ifndef OPLUS_ARCH_EXTENDS
+	/* Add for report headphone remove bug[1042404] */
 	pr_debug("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
 			__func__, plug_type, wrk_complete,
 			mbhc->btn_press_intr);
@@ -873,14 +1142,83 @@ report:
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
 
 	WCD_MBHC_RSC_LOCK(mbhc);
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: mbhc current_plug %d\n", __func__, mbhc->current_plug);
+	if (mbhc->current_plug != plug_type) {
+		//4pole -> 3pole
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+			&& (plug_type == MBHC_PLUG_TYPE_HEADPHONE)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADSET\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+
+		//3pole -> HIGH_HPH
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
+			&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADPHONE\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
+			}
+		}
+
+		//4pole -> HIGH_HPH
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+			&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADSET before report HIGH_HPH\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
+
 	wcd_mbhc_find_plug_and_report(mbhc, plug_type);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+	#else
+	pr_info("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
+			__func__, plug_type, wrk_complete,
+			mbhc->btn_press_intr);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
+	WCD_MBHC_RSC_LOCK(mbhc);
+	if (mbhc->current_plug != plug_type) {
+		if(mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET
+				&& plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+			msleep(200);
+			if (!wcd_swch_level_remove(mbhc)) {
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+
+		/* Add for report HEADPHONE remove event */
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
+				&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADPHONE\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
+			}
+		}
+
+		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
+	}
+	WCD_MBHC_RSC_UNLOCK(mbhc);
+	#endif /* OPLUS_ARCH_EXTENDS */
 enable_supply:
 	/*
 	 * Set DETECTION_DONE bit for HEADSET and ANC_HEADPHONE,
 	 * so that btn press/release interrupt can be generated.
 	 * For other plug type, clear the bit.
 	 */
+
+	#ifdef OPLUS_ARCH_EXTENDS
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
+		msleep(500);
+	}
+	#endif
+
 	if (plug_type == MBHC_PLUG_TYPE_HEADSET ||
 	    plug_type == MBHC_PLUG_TYPE_ANC_HEADPHONE)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 1);
@@ -890,6 +1228,10 @@ enable_supply:
 	if (mbhc->mbhc_cb->mbhc_micbias_control)
 		wcd_mbhc_adc_update_fsm_source(mbhc, plug_type);
 exit:
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: mbhc exit plug_type %d, micbias_enable %d\n",
+		__func__, plug_type, mbhc->micbias_enable);
+	#endif /* OPLUS_ARCH_EXTENDS */
 	if (mbhc->mbhc_cb->mbhc_micbias_control &&
 	    !mbhc->micbias_enable)
 		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
@@ -942,24 +1284,676 @@ exit:
 		mbhc->mbhc_cb->hph_pull_down_ctrl(codec, true);
 
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
+	#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+	if ((plug_type != MBHC_PLUG_TYPE_HEADSET) &&
+	    (plug_type != MBHC_PLUG_TYPE_HEADPHONE)) {
+		upload_mm_fb_func = symbol_request(upload_mm_fb_kevent_to_atlas_limit);
+		if (upload_mm_fb_func) {
+			scnprintf(buf, sizeof(buf) - 1, "func@@%s$$plug_type@@%d$$output_mv@@%d$$retry@@%d",
+				__func__, plug_type, output_mv, retry);
+			upload_mm_fb_func(OPLUS_AUDIO_EVENTID_HEADSET_DET, buf, OPLUS_FB_HEADSET_DET_RATELIMIT);
+		}
+	}
+	#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	pr_debug("%s: leave\n", __func__);
 }
+
+#else
+static void wcd_correct_swch_plug(struct work_struct *work)
+{
+	struct wcd_mbhc *mbhc;
+	struct snd_soc_codec *codec;
+	enum wcd_mbhc_plug_type plug_type = MBHC_PLUG_TYPE_INVALID;
+	unsigned long timeout;
+	bool wrk_complete = false;
+	#ifdef OPLUS_ARCH_EXTENDS
+	int pt_gnd_mic_swap_cnt = 0;
+	int no_gnd_mic_swap_cnt = 0;
+	#endif
+	bool is_pa_on = false, spl_hs = false, spl_hs_reported = false;
+	#ifdef OPLUS_ARCH_EXTENDS
+	int ret = 0;
+	#endif
+	int spl_hs_count = 0;
+	int output_mv = 0;
+	#if !defined(OPLUS_ARCH_EXTENDS) || defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	int cross_conn;
+	int try = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	enum wcd_mbhc_plug_type plug_type_first = MBHC_PLUG_TYPE_INVALID;
+	int output_mv_first = 0;
+	bool LR_connected = false;
+	#endif /* VENDOR_EDIT */
+	#ifdef OPLUS_ARCH_EXTENDS
+	#undef pr_debug
+	#define pr_debug pr_info
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	int hs_threshold, micbias_mv;
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	int headset_count = 0;
+	int headphone_count = 0;
+	int high_hph_count = 0;
+	int hph_threshold;
+	#endif /* OPLUS_ARCH_EXTENDS */
+	#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+	int retry = 0;
+	char buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+	#endif
+
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
+	pr_debug("%s: enter\n", __func__);
+
+	mbhc = container_of(work, struct wcd_mbhc, correct_plug_swch);
+	codec = mbhc->codec;
+
+	micbias_mv = wcd_mbhc_get_micbias(mbhc);
+	hs_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	pr_info("%s: hs_threshold %d mv\n", __func__, hs_threshold);
+	hph_threshold = wcd_mbhc_adc_get_hph_thres(mbhc);
+	pr_info("%s: hph_threshold %d mv\n", __func__, hph_threshold);
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	WCD_MBHC_RSC_LOCK(mbhc);
+	/* Mask ADC COMPLETE interrupt */
+	wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_INS, false);
+	WCD_MBHC_RSC_UNLOCK(mbhc);
+
+	#if !defined(OPLUS_ARCH_EXTENDS) || defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+    #ifndef OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL
+	if (mbhc->need_cross_conn) {
+    #endif
+	/* Check for cross connection */
+	do {
+		cross_conn = wcd_check_cross_conn(mbhc);
+		try++;
+	} while (try < mbhc->swap_thr);
+
+	if (cross_conn > 0) {
+		plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+		pr_debug("%s: cross connection found, Plug type %d\n",
+			 __func__, plug_type);
+		goto correct_plug_type;
+	}
+	/* Find plug type */
+	output_mv = wcd_measure_adc_continuous(mbhc);
+	pr_err("%s: second check output_mv = %d\n", __func__, output_mv);
+	plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+    #ifndef OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL
+	}
+    #endif
+	#else
+	output_mv_first = wcd_measure_adc_continuous(mbhc);
+	plug_type_first = wcd_mbhc_get_plug_from_adc(mbhc, output_mv_first);
+	pr_err("%s: first check output_mv = %d, plug_type = %d\n",
+		 __func__, output_mv_first, plug_type_first);
+	if(!mbhc->mbhc_cfg->enable_usbc_analog) {
+		output_mv = output_mv_first;
+		plug_type = plug_type_first;
+		goto plug_type_report;
+	}
+
+	if (mbhc->mbhc_cfg->swap_gnd_mic &&
+			mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+		pr_debug("%s: check headphone,flip switch\n", __func__);
+		msleep(10);
+		output_mv = wcd_measure_adc_continuous(mbhc);
+		plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+		pr_err("%s: second check output_mv = %d, plug_type = %d\n",
+			__func__, output_mv, plug_type);
+	}
+
+	if ((abs(output_mv_first - output_mv) < WCD_MBHC_ADC_DIFF_MIN_MV)
+	        && (plug_type_first == MBHC_PLUG_TYPE_HEADSET)
+	        && (plug_type == MBHC_PLUG_TYPE_HEADSET)) {
+		pr_debug("%s: maybe special headset, check again\n", __func__);
+		goto correct_plug_type;
+	} else if((output_mv_first > output_mv) && (plug_type_first == MBHC_PLUG_TYPE_HEADSET)){
+	    if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_debug("%s: swap gnd and mic\n", __func__);
+		}
+		plug_type = plug_type_first;
+	} else if ((MBHC_PLUG_TYPE_HIGH_HPH == plug_type_first)
+	        && (MBHC_PLUG_TYPE_HEADPHONE == plug_type)) {
+		if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(codec, true)) {
+			pr_debug("%s: swap gnd and mic\n", __func__);
+		}
+		plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
+		pr_debug("%s: maybe tieline, check again\n", __func__);
+		goto correct_plug_type;
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	/*
+	 * Report plug type if it is either headset or headphone
+	 * else start the 3 sec loop
+	 */
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	plug_type_report:
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	if ((plug_type == MBHC_PLUG_TYPE_HEADSET ||
+	     plug_type == MBHC_PLUG_TYPE_HEADPHONE) &&
+	    (!wcd_swch_level_remove(mbhc))) {
+		WCD_MBHC_RSC_LOCK(mbhc);
+		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+	}
+
+	/*
+	 * Set DETECTION_DONE bit for HEADSET and ANC_HEADPHONE,
+	 * so that btn press/release interrupt can be generated.
+	 */
+	if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET ||
+		mbhc->current_plug == MBHC_PLUG_TYPE_ANC_HEADPHONE) {
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 1);
+		#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+		if(mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET) {
+			pr_err("%s: headset report\n", __func__);
+			goto enable_supply;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
+	}
+
+correct_plug_type:
+	/*
+	 * Callback to disable BCS slow insertion detection
+	 */
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET ||
+	    plug_type == MBHC_PLUG_TYPE_HEADPHONE)
+		if (mbhc->mbhc_cb->bcs_enable)
+			mbhc->mbhc_cb->bcs_enable(mbhc, false);
+
+	timeout = jiffies + msecs_to_jiffies(HS_DETECT_PLUG_TIME_MS);
+	while (!time_after(jiffies, timeout)) {
+		if (mbhc->hs_detect_work_stop) {
+			pr_debug("%s: stop requested: %d\n", __func__,
+					mbhc->hs_detect_work_stop);
+			wcd_micbias_disable(mbhc);
+			goto exit;
+		}
+
+		/* allow sometime and re-check stop requested again */
+		msleep(20);
+		if (mbhc->hs_detect_work_stop) {
+			pr_debug("%s: stop requested: %d\n", __func__,
+					mbhc->hs_detect_work_stop);
+			wcd_micbias_disable(mbhc);
+			goto exit;
+		}
+
+		msleep(180);
+		/*
+		 * Use ADC single mode to minimize the chance of missing out
+		 * btn press/release for HEADSET type during correct work.
+		 */
+		output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
+		#ifdef OPLUS_ARCH_EXTENDS
+		if (output_mv < 0) {
+			pr_info("%s: MUX_CTL_IN2P adc measurement failed!\n", __func__);
+			continue;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
+
+		/*
+		 * instead of hogging system by contineous polling, wait for
+		 * sometime and re-check stop request again.
+		 */
+		plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+
+		if ((output_mv > hs_threshold) &&
+		    (spl_hs_count < WCD_MBHC_SPL_HS_CNT)) {
+			spl_hs = wcd_mbhc_adc_check_for_spl_headset(mbhc,
+								&spl_hs_count);
+			#ifdef OPLUS_ARCH_EXTENDS
+			pr_info("%s: spl_hs_count %d, spl_hs %d\n", __func__, spl_hs_count, spl_hs);
+			#endif /* OPLUS_ARCH_EXTENDS */
+			output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
+
+			if (spl_hs_count == WCD_MBHC_SPL_HS_CNT) {
+				hs_threshold = (hs_threshold *
+				     wcd_mbhc_get_micbias(mbhc)) / micbias_mv;
+				spl_hs = true;
+				mbhc->micbias_enable = true;
+			}
+		}
+
+		#ifdef OPLUS_ARCH_EXTENDS
+		if (output_mv < 0) {
+			pr_info("%s: invalid output_mv %d!\n", __func__, output_mv);
+			continue;
+		}
+		#endif /* OPLUS_ARCH_EXTENDS */
+
+		if (mbhc->mbhc_cb->hph_pa_on_status)
+			is_pa_on = mbhc->mbhc_cb->hph_pa_on_status(mbhc->codec);
+
+		#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+		retry++;
+		#endif /* OPLUS_FEATURE_MM_FEEDBACK */
+
+		#ifndef OPLUS_ARCH_EXTENDS
+		if (mbhc->need_cross_conn) {
+		#endif /* OPLUS_ARCH_EXTENDS */
+		if ((output_mv <= hs_threshold) &&
+		    (!is_pa_on)) {
+			#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+			pr_err("%s mbhc->mbhc_cfg->switch_type = %d\n", __func__,mbhc->mbhc_cfg->switch_type);
+			if(mbhc->mbhc_cfg->switch_type == MAX20328){
+				if(!LR_connected) {
+					max20328_set_LR_cnt(true);
+					msleep(10);
+					LR_connected = true;
+				}
+			}
+			#endif /* OPLUS_ARCH_EXTENDS */
+			/* Check for cross connection*/
+			ret = wcd_check_cross_conn(mbhc);
+			if (ret < 0)
+				continue;
+			else if (ret > 0) {
+				pt_gnd_mic_swap_cnt++;
+				no_gnd_mic_swap_cnt = 0;
+				if (pt_gnd_mic_swap_cnt <
+						mbhc->swap_thr) {
+					continue;
+				} else if (pt_gnd_mic_swap_cnt >
+					   mbhc->swap_thr) {
+					/*
+					 * This is due to GND/MIC switch didn't
+					 * work,  Report unsupported plug.
+					 */
+					pr_debug("%s: switch did not work\n",
+						 __func__);
+					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+					goto report;
+				} else {
+					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+				}
+			} else {
+				no_gnd_mic_swap_cnt++;
+				pt_gnd_mic_swap_cnt = 0;
+				plug_type = wcd_mbhc_get_plug_from_adc(
+						mbhc, output_mv);
+				if ((no_gnd_mic_swap_cnt <
+				    mbhc->swap_thr) &&
+				    (spl_hs_count != WCD_MBHC_SPL_HS_CNT)) {
+					continue;
+				} else {
+					no_gnd_mic_swap_cnt = 0;
+				}
+			}
+			if ((pt_gnd_mic_swap_cnt == mbhc->swap_thr) &&
+				(plug_type == MBHC_PLUG_TYPE_GND_MIC_SWAP)) {
+				/*
+				 * if switch is toggled, check again,
+				 * otherwise report unsupported plug
+				 */
+				if (mbhc->mbhc_cfg->swap_gnd_mic &&
+					mbhc->mbhc_cfg->swap_gnd_mic(codec,
+					true)) {
+					pr_debug("%s: US_EU gpio present,flip switch\n"
+						, __func__);
+					continue;
+				}
+			}
+		}
+		#ifndef OPLUS_ARCH_EXTENDS
+		} //need_cross_conn
+		#endif /* OPLUS_ARCH_EXTENDS */
+
+		if (output_mv > hs_threshold) {
+			pr_debug("%s: cable is extension cable\n", __func__);
+			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
+			wrk_complete = true;
+			#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+			high_hph_count++;
+			if ((high_hph_count == 5) && !headset_count && !headphone_count) {
+				pr_info("%s: HIGH_HPH type, break loop detect\n", __func__);
+				break;
+			}
+
+			continue;
+			#endif /* OPLUS_ARCH_EXTENDS */
+		} else {
+			pr_debug("%s: cable might be headset: %d\n", __func__,
+				 plug_type);
+			if (plug_type != MBHC_PLUG_TYPE_GND_MIC_SWAP) {
+				plug_type = wcd_mbhc_get_plug_from_adc(
+						mbhc, output_mv);
+
+				#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+				if (plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+					headphone_count++;
+				}
+
+				if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
+					headset_count++;
+				}
+
+				pr_info("%s: spl_hs_reported %d\n", __func__, spl_hs_reported);
+				pr_info("%s: headphone_count %d\n", __func__, headphone_count);
+				pr_info("%s: headset_count %d\n", __func__, headset_count);
+				#endif /* OPLUS_ARCH_EXTENDS */
+
+				if (!spl_hs_reported &&
+				    spl_hs_count == WCD_MBHC_SPL_HS_CNT) {
+					spl_hs_reported = true;
+					WCD_MBHC_RSC_LOCK(mbhc);
+					wcd_mbhc_find_plug_and_report(mbhc,
+								    plug_type);
+					WCD_MBHC_RSC_UNLOCK(mbhc);
+					continue;
+				} else if (spl_hs_reported)
+					continue;
+				/*
+				 * Report headset only if not already reported
+				 * and if there is not button press without
+				 * release
+				 */
+				#ifdef OPLUS_ARCH_EXTENDS
+				pr_info("%s: loop current_plug %d\n", __func__, mbhc->current_plug);
+				#endif /* OPLUS_ARCH_EXTENDS */
+				if ((mbhc->current_plug !=
+				      MBHC_PLUG_TYPE_HEADSET) &&
+				     (mbhc->current_plug !=
+				     MBHC_PLUG_TYPE_ANC_HEADPHONE) &&
+				    !wcd_swch_level_remove(mbhc)) {
+					pr_debug("%s: cable is %s headset\n",
+						 __func__,
+						((spl_hs_count ==
+							WCD_MBHC_SPL_HS_CNT) ?
+							"special ":""));
+					#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+					if (MBHC_PLUG_TYPE_HEADPHONE == plug_type){
+						headphone_count++;
+						if (headphone_count < 5) {
+						    continue;
+						}
+						pr_err("%s: headphone_count = %d\n",
+						    __func__, headphone_count);
+					}
+					#endif
+					goto report;
+				}
+
+				#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+				if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+					&& (!wcd_swch_level_remove(mbhc))) {
+					if (headphone_count == 6) {
+						pr_info("%s: go to report 3pole\n", __func__);
+						goto report;
+					}
+
+					if ((plug_type == MBHC_PLUG_TYPE_HEADSET) && (headset_count == 6)) {
+						pr_info("%s: it is headset, break loop detect!\n", __func__);
+						break;
+					}
+				}
+				#endif /* OPLUS_ARCH_EXTENDS */
+			}
+			wrk_complete = false;
+		}
+	}
+	if ((plug_type == MBHC_PLUG_TYPE_HEADSET ||
+	    plug_type == MBHC_PLUG_TYPE_HEADPHONE))
+		if (mbhc->mbhc_cb->bcs_enable)
+			mbhc->mbhc_cb->bcs_enable(mbhc, true);
+
+	if (!wrk_complete) {
+		/*
+		 * If plug_tye is headset, we might have already reported either
+		 * in detect_plug-type or in above while loop, no need to report
+		 * again
+		 */
+		if ((plug_type == MBHC_PLUG_TYPE_HEADSET) ||
+		    (plug_type == MBHC_PLUG_TYPE_ANC_HEADPHONE)) {
+			pr_debug("%s: plug_type:0x%x already reported\n",
+				 __func__, mbhc->current_plug);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
+			goto enable_supply;
+		}
+	}
+	if (plug_type == MBHC_PLUG_TYPE_HIGH_HPH) {
+		if (wcd_is_special_headset(mbhc)) {
+			pr_debug("%s: Special headset found %d\n",
+					__func__, plug_type);
+			plug_type = MBHC_PLUG_TYPE_HEADSET;
+		} else {
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ELECT_ISRC_EN, 1);
+		}
+	}
+
+report:
+	if (wcd_swch_level_remove(mbhc)) {
+		pr_debug("%s: Switch level is low\n", __func__);
+		goto exit;
+	}
+	#if !defined(OPLUS_ARCH_EXTENDS) || defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	/* Add for report headphone remove bug[1042404] */
+	pr_debug("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
+			__func__, plug_type, wrk_complete,
+			mbhc->btn_press_intr);
+
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
+
+	WCD_MBHC_RSC_LOCK(mbhc);
+
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	pr_info("%s: mbhc current_plug %d\n", __func__, mbhc->current_plug);
+	if (mbhc->current_plug != plug_type) {
+		//4pole -> 3pole
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+			&& (plug_type == MBHC_PLUG_TYPE_HEADPHONE)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADSET\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+
+		//3pole -> HIGH_HPH
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
+			&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADPHONE\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
+			}
+		}
+
+		//4pole -> HIGH_HPH
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET)
+			&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADSET before report HIGH_HPH\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	wcd_mbhc_find_plug_and_report(mbhc, plug_type);
+	WCD_MBHC_RSC_UNLOCK(mbhc);
+	#else /* VENDOR_EDIT */
+	pr_info("%s: Valid plug found, plug type %d wrk_cmpt %d btn_intr %d\n",
+			__func__, plug_type, wrk_complete,
+			mbhc->btn_press_intr);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_MODE, 0);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_ADC_EN, 0);
+	WCD_MBHC_RSC_LOCK(mbhc);
+	if (mbhc->current_plug != plug_type) {
+		if(mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET
+				&& plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+			msleep(200);
+			if (!wcd_swch_level_remove(mbhc)) {
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADSET);
+			}
+		}
+
+		/* Add for report HEADPHONE remove event */
+		if ((mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
+				&& (plug_type == MBHC_PLUG_TYPE_HIGH_HPH)) {
+			if (!wcd_swch_level_remove(mbhc)) {
+				pr_info("%s: report remove SND_JACK_HEADPHONE\n", __func__);
+				wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
+			}
+		}
+
+		wcd_mbhc_find_plug_and_report(mbhc, plug_type);
+	}
+	WCD_MBHC_RSC_UNLOCK(mbhc);
+	#endif /* OPLUS_ARCH_EXTENDS */
+enable_supply:
+	/*
+	 * Set DETECTION_DONE bit for HEADSET and ANC_HEADPHONE,
+	 * so that btn press/release interrupt can be generated.
+	 * For other plug type, clear the bit.
+	 */
+
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET) {
+		msleep(500);
+	}
+	#endif
+
+	if (plug_type == MBHC_PLUG_TYPE_HEADSET ||
+	    plug_type == MBHC_PLUG_TYPE_ANC_HEADPHONE)
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 1);
+	else
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
+
+	if (mbhc->mbhc_cb->mbhc_micbias_control)
+		wcd_mbhc_adc_update_fsm_source(mbhc, plug_type);
+exit:
+	#ifdef OPLUS_ARCH_EXTENDS
+	pr_info("%s: mbhc exit plug_type %d, micbias_enable %d\n",
+		__func__, plug_type, mbhc->micbias_enable);
+	#endif /* OPLUS_ARCH_EXTENDS */
+	if (mbhc->mbhc_cb->mbhc_micbias_control &&
+	    !mbhc->micbias_enable)
+		mbhc->mbhc_cb->mbhc_micbias_control(codec, MIC_BIAS_2,
+						    MICB_DISABLE);
+
+	/*
+	 * If plug type is corrected from special headset to headphone,
+	 * clear the micbias enable flag, set micbias back to 1.8V and
+	 * disable micbias.
+	 */
+	if (plug_type == MBHC_PLUG_TYPE_HEADPHONE &&
+	    mbhc->micbias_enable) {
+		if (mbhc->mbhc_cb->mbhc_micbias_control)
+			mbhc->mbhc_cb->mbhc_micbias_control(
+					codec, MIC_BIAS_2,
+					MICB_DISABLE);
+		if (mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic)
+			mbhc->mbhc_cb->mbhc_micb_ctrl_thr_mic(
+					codec,
+					MIC_BIAS_2, false);
+		if (mbhc->mbhc_cb->set_micbias_value) {
+			mbhc->mbhc_cb->set_micbias_value(codec);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB_CTRL, 0);
+		}
+		mbhc->micbias_enable = false;
+	}
+
+	if (mbhc->mbhc_cfg->detect_extn_cable &&
+	    ((plug_type == MBHC_PLUG_TYPE_HEADPHONE) ||
+	     (plug_type == MBHC_PLUG_TYPE_HEADSET)) &&
+	    !mbhc->hs_detect_work_stop) {
+		WCD_MBHC_RSC_LOCK(mbhc);
+		wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_REM, true);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+	}
+
+	/*
+	 * Enable ADC COMPLETE interrupt for HEADPHONE.
+	 * Btn release may happen after the correct work, ADC COMPLETE
+	 * interrupt needs to be captured to correct plug type.
+	 */
+	if (plug_type == MBHC_PLUG_TYPE_HEADPHONE) {
+		WCD_MBHC_RSC_LOCK(mbhc);
+		wcd_mbhc_hs_elec_irq(mbhc, WCD_MBHC_ELEC_HS_INS,
+				     true);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+	}
+
+	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
+		mbhc->mbhc_cb->hph_pull_down_ctrl(codec, true);
+
+	#if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	 pr_err("%s mbhc->mbhc_cfg->switch_type = %d\n", __func__,mbhc->mbhc_cfg->switch_type);
+	 if(mbhc->mbhc_cfg->switch_type == MAX20328){
+		if(!LR_connected) {
+			max20328_set_LR_cnt(true);
+			LR_connected = true;
+		}
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
+
+	mbhc->mbhc_cb->lock_sleep(mbhc, false);
+	#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+	if ((plug_type != MBHC_PLUG_TYPE_HEADSET) &&
+	    (plug_type != MBHC_PLUG_TYPE_HEADPHONE)) {
+		upload_mm_fb_func = symbol_request(upload_mm_fb_kevent_to_atlas_limit);
+		if (upload_mm_fb_func) {
+			scnprintf(buf, sizeof(buf) - 1, "func@@%s$$plug_type@@%d$$output_mv@@%d$$retry@@%d",
+				__func__, plug_type, output_mv, retry);
+			upload_mm_fb_func(OPLUS_AUDIO_EVENTID_HEADSET_DET, buf, OPLUS_FB_HEADSET_DET_RATELIMIT);
+		}
+	}
+	#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+	pr_debug("%s: leave\n", __func__);
+}
+#endif /* REALME_19696_SPECIFIC_AUDIO_KERNEL */
 
 static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 {
 	struct wcd_mbhc *mbhc = data;
+	#ifdef OPLUS_FEATURE_FSA4480
+	struct snd_soc_codec *codec = mbhc->codec;
+	struct snd_soc_component component = codec->component;
+	#endif
 	unsigned long timeout;
 	int adc_threshold, output_mv, retry = 0;
 	bool hphpa_on = false;
 	u8  moisture_status = 0;
 
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
+	#ifdef OPLUS_FEATURE_FSA4480
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x0) < 0)
+		pr_info("%s: reg update fail!\n", __func__);
+	else
+		pr_info("%s: reg update success!\n", __func__);
+
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x12) < 0)
+		pr_info("%s: reg update fail!\n", __func__);
+	else
+		pr_info("%s: reg update success!\n", __func__);
+	goto exit;
+	#endif
 
 	timeout = jiffies +
 		  msecs_to_jiffies(WCD_FAKE_REMOVAL_MIN_PERIOD_MS);
 	adc_threshold = wcd_mbhc_adc_get_hs_thres(mbhc);
-
+    #if !defined(OPLUS_ARCH_EXTENDS) || defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
 	do {
 		retry++;
 		/*
@@ -978,6 +1972,52 @@ static irqreturn_t wcd_mbhc_adc_hs_rem_irq(int irq, void *data)
 			goto exit;
 		}
 	} while (!time_after(jiffies, timeout));
+    #ifndef OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL
+	if (wcd_swch_level_remove(mbhc)) {
+		pr_debug("%s: Switch level is low ", __func__);
+		goto exit;
+	}
+    #endif
+	#else
+	if (mbhc->mbhc_cb->mbhc_micbias_control) {
+		mbhc->mbhc_cb->mbhc_micbias_control(mbhc->codec, MIC_BIAS_2,
+						    MICB_ENABLE);
+		pr_debug("%s: enable micbias 2.7v\n", __func__);
+	}
+
+	do {
+		retry++;
+		/*
+		 * read output_mv every 10ms to look for
+		 * any change in IN2_P
+		 */
+		usleep_range(10000, 10100);
+
+		output_mv = wcd_measure_adc_once(mbhc, MUX_CTL_IN2P);
+
+		pr_debug("%s: Check for fake removal: output_mv %d\n",
+			 __func__, output_mv);
+		if ((output_mv <= adc_threshold) &&
+		    retry > FAKE_REM_RETRY_ATTEMPTS) {
+			pr_debug("%s: headset is NOT actually removed\n",
+				 __func__);
+
+			if (mbhc->mbhc_cb->mbhc_micbias_control) {
+				mbhc->mbhc_cb->mbhc_micbias_control(mbhc->codec, MIC_BIAS_2,
+									MICB_DISABLE);
+				pr_err("%s: lile add disable micbias \n", __func__);
+			}
+
+			goto exit;
+		}
+	} while (!time_after(jiffies, timeout));
+
+	if (mbhc->mbhc_cb->mbhc_micbias_control) {
+		mbhc->mbhc_cb->mbhc_micbias_control(mbhc->codec, MIC_BIAS_2,
+						    MICB_DISABLE);
+		pr_err("%s: lile add disable micbias \n", __func__);
+	}
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (wcd_swch_level_remove(mbhc)) {
 		pr_debug("%s: Switch level is low ", __func__);
@@ -1047,11 +2087,31 @@ exit:
 static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 {
 	struct wcd_mbhc *mbhc = data;
+	#ifdef OPLUS_FEATURE_FSA4480
+	struct snd_soc_codec *codec = mbhc->codec;
+	struct snd_soc_component component = codec->component;
+	#endif
 	u8 clamp_state = 0;
 	u8 clamp_retry = WCD_MBHC_FAKE_INS_RETRY;
 
-	pr_debug("%s: enter\n", __func__);
+#ifdef OPLUS_ARCH_EXTENDS
+#undef pr_debug
+#define pr_debug pr_info
+#endif /* OPLUS_ARCH_EXTENDS */
 
+	pr_debug("%s: enter\n", __func__);
+	#ifdef OPLUS_FEATURE_FSA4480
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x0) < 0)
+		pr_info("%s: reg update fail!\n", __func__);
+	else
+		pr_info("%s: reg update success!\n", __func__);
+
+	if (snd_soc_component_update_bits(&component, WCD934X_INTR_BYPASS1, 0x12, 0x12) < 0)
+		pr_info("%s: reg update fail!\n", __func__);
+	else
+		pr_info("%s: reg update success!\n", __func__);
+	goto done;
+	#endif
 	/*
 	 * ADC COMPLETE and ELEC_REM interrupts are both enabled for HEADPHONE,
 	 * need to reject the ADC COMPLETE interrupt which follows ELEC_REM one
@@ -1077,6 +2137,14 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	} while (--clamp_retry);
 
 	WCD_MBHC_RSC_LOCK(mbhc);
+
+        #ifdef OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL
+	if (mbhc->use_usbc_detect && wcd_swch_level_remove(mbhc)) {
+		pr_warn("%s: Switch level is low ", __func__);
+		WCD_MBHC_RSC_UNLOCK(mbhc);
+		return IRQ_HANDLED;
+	}
+        #endif
 	/*
 	 * If current plug is headphone then there is no chance to
 	 * get ADC complete interrupt, so connected cable should be
@@ -1106,6 +2174,9 @@ static irqreturn_t wcd_mbhc_adc_hs_ins_irq(int irq, void *data)
 	mbhc->btn_press_intr = false;
 	wcd_mbhc_adc_detect_plug_type(mbhc);
 	WCD_MBHC_RSC_UNLOCK(mbhc);
+#ifdef OPLUS_FEATURE_FSA4480
+done:
+#endif
 	pr_debug("%s: leave\n", __func__);
 	return IRQ_HANDLED;
 }
@@ -1130,5 +2201,9 @@ void wcd_mbhc_adc_init(struct wcd_mbhc *mbhc)
 	}
 	mbhc->mbhc_fn = &mbhc_fn;
 	INIT_WORK(&mbhc->correct_plug_swch, wcd_correct_swch_plug);
+        #if defined(OPLUS_ARCH_EXTENDS) && !defined(OPLUS_FEATURE_OP_SPECIFIC_AUDIO_KERNEL)
+	INIT_DELAYED_WORK(&mbhc->hp_detect_work, wcd_mbhc_detect_plug_type_new);
+        #endif
+
 }
 EXPORT_SYMBOL(wcd_mbhc_adc_init);
